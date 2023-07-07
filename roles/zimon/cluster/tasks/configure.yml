@@ -35,6 +35,23 @@
   with_items: "{{ ansible_play_hosts }}"
   changed_when: false
 
+- name: cluster | Find existing cluster
+  shell: /usr/lpp/mmfs/bin/mmlscluster -Y | grep -v HEADER | grep clusterSummary | cut -d ':' -f 8
+  register: scale_cluster_clusterId
+  changed_when: false
+  failed_when: false
+
+- name: configure | Initialize sensor nodes
+  add_host:
+    name: "{{ item }}"
+    groups: scale_sensor_nodes
+  when:
+    - hostvars[item].scale_cluster_clusterId is defined
+    - hostvars[item].scale_cluster_clusterId.stdout is defined
+    - hostvars[item].scale_cluster_clusterId.stdout
+  with_items: "{{ ansible_play_hosts }}"
+  changed_when: false
+
 - name: configure | check if zimon is enabled
   set_fact:
     scale_cluster_zimon: true
@@ -115,7 +132,7 @@
 
 - name: configure | Enable nodes for performance collection #TODO discuss: should it be dependent on scale_zimon_collector?
   vars:
-    sensor_nodes: "{{ ansible_play_hosts | list }}"
+    sensor_nodes: "{{ groups['scale_sensor_nodes'] | list }}"
   command: /usr/lpp/mmfs/bin/mmchnode --perfmon -N {{ sensor_nodes | join(',') }}
   async: 45
   poll: 5
